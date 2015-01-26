@@ -3,6 +3,7 @@ var pixi = PIXI
 var stage
 var pixiWorld
 var renderer
+var lastRender
 var bodyMap = {}
 var isHost = false
 var update = simpleUpdate
@@ -26,21 +27,32 @@ Meteor.startup(function () {
 Template.game.rendered = function () {
   initPhysics()
   initRender()
-  Bodies.find().observe({
-    added: function (body) {
-      startSimulatingBody(body)
-    },
-    removed: function (body) {
-      stopSimulatingBody(body)
+  Meteor.subscribe('Bodies', {
+    onReady: function () {
+      Bodies.find().observe({
+        added: function (body) {
+          console.log('Body added:', body)
+          startSimulatingBody(body)
+        },
+        removed: function (body) {
+          console.log('Body removed:', body)
+          stopSimulatingBody(body)
+        }
+      })
     }
   })
 
   update()
 }
 
-function simpleUpdate () {
+function simpleUpdate (time) {
+  var deltaTime = (time - lastRender) / 1000
+  lastRender = time
   renderBodies()
   renderer.render(stage)
+  if (isHost) {
+    p2World.step(deltaTime || 0.017)
+  }
   requestAnimationFrame(update)
 }
 
@@ -112,19 +124,21 @@ function initPhysics () {
 }
 
 function createPlayerBody (player) {
-  Bodies.insert({
-    worldId: Bodies.find().count() + 1,
-    position: [Math.random() * 200, 200],
-    shape: {
-      type: 'circle',
-      radius: 10
-    },
-    mass: 5,
-    damping: 0.5,
-    data: {
-      username: player.username
-    }
-  })
+  if (Bodies.find({ 'data.username': player.username }).count() === 0) {
+    Bodies.insert({
+      worldId: Bodies.find().count() + 1,
+      position: [Math.random() * 200, 200],
+      shape: {
+        type: 'circle',
+        radius: 10
+      },
+      mass: 5,
+      damping: 0.5,
+      data: {
+        username: player.username
+      }
+    })
+  }
 }
 
 function startSimulatingBody (document) {

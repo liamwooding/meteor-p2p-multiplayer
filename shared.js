@@ -7,6 +7,6 @@ StateStream = new Meteor.Stream('State')
 Config = {
   defaultPassword: 'peer2peer',
   world: {
-    gravity: [0, 0]
+    gravity: [0, 9]
   }
 }
