@@ -4,6 +4,7 @@ var stage
 var pixiWorld
 var renderer
 var lastRender
+var lastSave = Date.now()
 var bodyMap = {}
 var isHost = false
 var update = simpleUpdate
@@ -25,24 +26,13 @@ Meteor.startup(function () {
 })
 
 Template.game.rendered = function () {
-  initPhysics()
-  initRender()
   Meteor.subscribe('Bodies', {
     onReady: function () {
-      Bodies.find().observe({
-        added: function (body) {
-          console.log('Body added:', body)
-          startSimulatingBody(body)
-        },
-        removed: function (body) {
-          console.log('Body removed:', body)
-          stopSimulatingBody(body)
-        }
-      })
+      initPhysics()
+      initRender()
+      update()
     }
   })
-
-  update()
 }
 
 function simpleUpdate (time) {
@@ -51,6 +41,7 @@ function simpleUpdate (time) {
   renderBodies()
   renderer.render(stage)
   if (isHost) {
+    if (Date.now() - lastSave > 5000) saveState()
     p2World.step(deltaTime || 0.017)
   }
   requestAnimationFrame(update)
@@ -115,6 +106,16 @@ function initPhysics () {
   Bodies.find().forEach(function (body) {
     startSimulatingBody(body)
   })
+  Bodies.find().observe({
+    added: function (body) {
+      console.log('Body added:', body)
+      startSimulatingBody(body)
+    },
+    removed: function (body) {
+      console.log('Body removed:', body)
+      stopSimulatingBody(body)
+    }
+  })
   Players.find().observe({
     added: function (player) {
       if (!isHost) return
@@ -125,6 +126,7 @@ function initPhysics () {
 
 function createPlayerBody (player) {
   if (Bodies.find({ 'data.username': player.username }).count() === 0) {
+    console.log('Started simulating player')
     Bodies.insert({
       worldId: Bodies.find().count() + 1,
       position: [Math.random() * 200, 200],
@@ -145,7 +147,7 @@ function startSimulatingBody (document) {
   console.log(document)
   var existingBodies = p2World.bodies.filter(function (body) {
     if (body.id === document.worldId) {
-      console.log('body with id', b.id, 'exists')
+      console.log('body with id', body.id, 'exists')
       return body
     }
   })
@@ -209,4 +211,21 @@ function startRenderingBody (body) {
   pixiWorld.addChild(graphic)
   if (!bodyMap[body.id]) bodyMap[body.id] = { graphic: graphic }
   else bodyMap[body.id].graphic = graphic
+}
+
+function saveState () {
+  console.log('Saving state')
+  Bodies.find().forEach(function (body) {
+    var p2Body = p2World.getBodyById(body.worldId)
+    if (!p2Body) Bodies.remove(body._id)
+    else {
+      Bodies.update(body._id, {
+        $set: {
+          position: p2Body.position,
+          velocity: p2Body.velocity
+        }
+      })
+    }
+  })
+  lastSave = Date.now()
 }
