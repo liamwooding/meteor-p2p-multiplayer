@@ -37,20 +37,17 @@ Template.game.rendered = function () {
   })
 
   InputStream.on('Input', function (event) {
-    if (isHost) handleInput(event.keycode, event.worldId)
+    if (isHost) handleInput(event.position, event.worldId)
   })
 
   StateStream.on('State', function (snapshot) {
     snapshots.push(snapshot)
   })
 
-  $(document).keydown(function (e) {
-    var keycode = e.which
-    if (Config.keyMap[keycode]) {
-      console.log('Key pressed:', Config.keyMap[keycode])
-      if (isHost) handleInput(keycode, player.body.id)
-      else InputStream.emit('Input', { keycode: keycode, worldId: player.body.id })
-    }
+  $(document).click(function (e) {
+    console.log(e.pageX, e.pageY)
+    if (isHost) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
+    else InputStream.emit('Input', { position: [e.pageX, window.innerHeight - e.pageY], worldId: player.body.id })
   })
 }
 
@@ -99,9 +96,7 @@ function loggedIn () {
 
   Meteor.subscribe('Players', {
     onReady: function () {
-      if (isHost) {
-        Players.find().forEach(createPlayerBody)
-      }
+      Players.find().forEach(createPlayerBody)
     }
   })
 
@@ -136,27 +131,27 @@ function becomeClient () {
   // Do client stuff
 }
 
-function handleInput (keycode, playerWorldId) {
-  console.log('Got input:', Config.keyMap[keycode])
+function handleInput (position, playerWorldId) {
   var playerBody = p2World.getBodyById(playerWorldId)
   if (!playerBody) return
   console.log(playerBody)
-  var forceVector
-  switch (Config.keyMap[keycode]) {
-    case 'left':
-      forceVector = [-50, 0]
-      break
-    case 'up':
-      forceVector = [0, 50]
-      break
-    case 'right':
-      forceVector = [50, 0]
-      break
-    case 'down':
-      forceVector = [0, -50]
-      break
-  }
+  var positionVector = [
+     position[0] - playerBody.position[0],
+     position[1] - playerBody.position[1],
+  ]
+  console.log('positionVector:', positionVector)
+  var forceVector = normalizeVector(positionVector)
+  console.log(forceVector)
   playerBody.applyForce(forceVector, playerBody.position)
+}
+
+function normalizeVector (v) {
+  var length = Math.sqrt((v[0] * v[0]) + (v[1] * v[1]))
+  v[0] /= length
+  v[1] /= length
+  v[0] *= 5000
+  v[1] *= 5000
+  return v
 }
 
 function initPhysics () {
