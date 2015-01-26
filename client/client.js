@@ -6,8 +6,10 @@ var renderer
 var lastRender
 var lastSave = Date.now()
 var bodyMap = {}
+var player = {}
 var isHost = false
 var update = simpleUpdate
+var snapshots = []
 
 Meteor.startup(function () {
   if (!localStorage.uuid) localStorage.uuid = Meteor.uuid()
@@ -33,17 +35,50 @@ Template.game.rendered = function () {
       update()
     }
   })
+
+  InputStream.on('Input', function (event) {
+    if (isHost) handleInput(event.keycode, event.worldId)
+  })
+
+  StateStream.on('State', function (snapshot) {
+    snapshots.push(snapshot)
+  })
+
+  $(document).keydown(function (e) {
+    var keycode = e.which
+    if (Config.keyMap[keycode]) {
+      console.log('Key pressed:', Config.keyMap[keycode])
+      if (isHost) handleInput(keycode, player.body.id)
+      else InputStream.emit('Input', { keycode: keycode, worldId: player.body.id })
+    }
+  })
 }
 
 function simpleUpdate (time) {
   var deltaTime = (time - lastRender) / 1000
   lastRender = time
-  renderBodies()
-  renderer.render(stage)
   if (isHost) {
+    var bodyStates = p2World.bodies.map(function (body) {
+      return {
+        id: body.id,
+        position: body.position
+      }
+    })
+    StateStream.emit('State', bodyStates)
     if (Date.now() - lastSave > 5000) saveState()
     p2World.step(deltaTime || 0.017)
+  } else {
+    var snapshot = snapshots[snapshots.length - 1]
+    if (snapshot) {
+      snapshot.forEach(function (body) {
+        var p2Body = p2World.getBodyById(body.id)
+        p2Body.position = body.position
+      })
+      snapshots = []
+    }
   }
+  renderBodies()
+  renderer.render(stage)
   requestAnimationFrame(update)
 }
 
@@ -64,7 +99,9 @@ function loggedIn () {
 
   Meteor.subscribe('Players', {
     onReady: function () {
-       Players.find().forEach(createPlayerBody)
+      if (isHost) {
+        Players.find().forEach(createPlayerBody)
+      }
     }
   })
 
@@ -99,6 +136,29 @@ function becomeClient () {
   // Do client stuff
 }
 
+function handleInput (keycode, playerWorldId) {
+  console.log('Got input:', Config.keyMap[keycode])
+  var playerBody = p2World.getBodyById(playerWorldId)
+  if (!playerBody) return
+  console.log(playerBody)
+  var forceVector
+  switch (Config.keyMap[keycode]) {
+    case 'left':
+      forceVector = [-50, 0]
+      break
+    case 'up':
+      forceVector = [0, 50]
+      break
+    case 'right':
+      forceVector = [50, 0]
+      break
+    case 'down':
+      forceVector = [0, -50]
+      break
+  }
+  playerBody.applyForce(forceVector, playerBody.position)
+}
+
 function initPhysics () {
   p2World = new p2.World({
     gravity: Config.world.gravity
@@ -126,7 +186,6 @@ function initPhysics () {
 
 function createPlayerBody (player) {
   if (Bodies.find({ 'data.username': player.username }).count() === 0) {
-    console.log('Started simulating player')
     Bodies.insert({
       worldId: Bodies.find().count() + 1,
       position: [Math.random() * 200, 200],
@@ -144,7 +203,6 @@ function createPlayerBody (player) {
 }
 
 function startSimulatingBody (document) {
-  console.log(document)
   var existingBodies = p2World.bodies.filter(function (body) {
     if (body.id === document.worldId) {
       console.log('body with id', body.id, 'exists')
@@ -163,11 +221,12 @@ function startSimulatingBody (document) {
     var p2Shape = new p2.Circle(document.shape.radius)
     p2Body.addShape(p2Shape)
   }
-  p2Body.velocity = document.velocity || [0, 0]
+  p2Body.velocity = document.velocity !== undefined ? document.velocity : [0, 0]
   console.log('Started simulating body:', p2Body)
   p2World.addBody(p2Body)
   if (!bodyMap[document.worldId]) bodyMap[document.worldId] = { body: p2Body }
   else bodyMap[document.worldId].body = p2Body
+  if (document.data && Meteor.user() && document.data.username === Meteor.user().username) player.body = p2Body
 }
 
 function stopSimulatingBody (body) {
@@ -206,7 +265,7 @@ function startRenderingBody (body) {
     x: body.position[0],
     y: body.position[1]
   }
-  if (body.data && body.data.username === Meteor.user().username) playerGraphic = graphic
+  if (body.data && Meteor.user() && body.data.username === Meteor.user().username) player.graphic = graphic
   console.log('Started rendering body:', graphic)
   pixiWorld.addChild(graphic)
   if (!bodyMap[body.id]) bodyMap[body.id] = { graphic: graphic }

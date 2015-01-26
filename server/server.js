@@ -39,9 +39,16 @@ Meteor.startup(function () {
     }
   })
 
-  StateStream.permissions.read(function (userId, eventName) {
+  StateStream.permissions.write(function (eventName, args) {
+    console.log(eventName, args)
     return true
   })
+  InputStream.permissions.write(function (eventName, args) {
+    console.log(eventName, args)
+    return true
+  })
+  StateStream.permissions.read(function (userId, eventName) { return true })
+  InputStream.permissions.read(function (userId, eventName) { return true })
 
   Accounts.onLogin(function (args) {
     if (args.error) return console.error(args.error)

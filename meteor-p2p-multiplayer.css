@@ -1,5 +1,17 @@
 /* CSS declarations go here */
-body, html, canvas {
+body, html {
   margin: 0;
   padding: 0;
+}
+
+canvas {
+  position: fixed;
+  width: 100%;
+  height: 100%;
+  -moz-transform: scaleY(-1);
+  -o-transform: scaleY(-1);
+  -webkit-transform: scaleY(-1);
+  transform: scaleY(-1);
+  filter: FlipV;
+  -ms-filter: "FlipV";
 }
