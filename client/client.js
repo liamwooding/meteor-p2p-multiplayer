@@ -252,7 +252,8 @@ function startRenderingBody (body) {
   }
 
   var graphic = new pixi.Graphics()
-  graphic.beginFill(0xFFFFFF)
+  if (body.data && Meteor.user() && body.data.username === Meteor.user().username) graphic.beginFill(0xFFFF00)
+  else graphic.beginFill(0xFFFFFF)
 
   graphic.drawShape(pixiShape)
   graphic.endFill()
