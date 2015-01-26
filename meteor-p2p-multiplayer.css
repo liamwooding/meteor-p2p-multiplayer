@@ -2,12 +2,10 @@
 body, html {
   margin: 0;
   padding: 0;
+  background-color: black;
 }
 
 canvas {
-  position: fixed;
-  width: 100%;
-  height: 100%;
   -moz-transform: scaleY(-1);
   -o-transform: scaleY(-1);
   -webkit-transform: scaleY(-1);

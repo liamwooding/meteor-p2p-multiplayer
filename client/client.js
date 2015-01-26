@@ -10,6 +10,7 @@ var player = {}
 var isHost = false
 var update = simpleUpdate
 var snapshots = []
+var initialScreenRatio
 
 Meteor.startup(function () {
   if (!localStorage.uuid) localStorage.uuid = Meteor.uuid()
@@ -45,7 +46,6 @@ Template.game.rendered = function () {
   })
 
   $(document).click(function (e) {
-    console.log(e.pageX, e.pageY)
     if (isHost) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
     else InputStream.emit('Input', { position: [e.pageX, window.innerHeight - e.pageY], worldId: player.body.id })
   })
@@ -134,14 +134,11 @@ function becomeClient () {
 function handleInput (position, playerWorldId) {
   var playerBody = p2World.getBodyById(playerWorldId)
   if (!playerBody) return
-  console.log(playerBody)
   var positionVector = [
      position[0] - playerBody.position[0],
      position[1] - playerBody.position[1],
   ]
-  console.log('positionVector:', positionVector)
   var forceVector = normalizeVector(positionVector)
-  console.log(forceVector)
   playerBody.applyForce(forceVector, playerBody.position)
 }
 
@@ -236,7 +233,8 @@ function initRender () {
   stage.addChild(pixiWorld)
   // The UI should be static tho
   stage.addChild(ui)
-  renderer = new pixi.autoDetectRenderer(window.innerWidth, window.innerHeight, {
+  initialScreenRatio = window.innerWidth / window.innerHeight
+  renderer = new pixi.autoDetectRenderer(window.innerWidth - 4, window.innerHeight - 4, {
     antialias: true
   })
   document.body.appendChild(renderer.view)
@@ -272,6 +270,7 @@ function saveState () {
   console.log('Saving state')
   Bodies.find().forEach(function (body) {
     var p2Body = p2World.getBodyById(body.worldId)
+    console.log(p2Body)
     if (!p2Body) Bodies.remove(body._id)
     else {
       Bodies.update(body._id, {
