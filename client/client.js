@@ -8,9 +8,12 @@ var lastSave = Date.now()
 var bodyMap = {}
 var player = {}
 var isHost = false
-var update = simpleUpdate
-var snapshots = []
-var initialScreenRatio
+var update = simpleInterpolatedSnapshotsUpdate
+var interpolationBuffer = []
+var framesToInterpolate = 0
+var snapshotIndex = 0
+var timeDiffs = []
+var avgTimeDiff = 0
 
 Meteor.startup(function () {
   if (!localStorage.uuid) localStorage.uuid = Meteor.uuid()
@@ -42,7 +45,7 @@ Template.game.rendered = function () {
   })
 
   StateStream.on('State', function (snapshot) {
-    snapshots.push(snapshot)
+    processSnapshot(snapshot)
   })
 
   $(document).mousedown(function (e) {
@@ -55,28 +58,86 @@ function simpleUpdate (time) {
   var deltaTime = (time - lastRender) / 1000
   lastRender = time
   if (isHost) {
-    var bodyStates = p2World.bodies.map(function (body) {
+    var bodies = p2World.bodies.map(function (body) {
       return {
         id: body.id,
-        position: body.position
+        position: body.position,
+        index: snapshotIndex
       }
     })
-    StateStream.emit('State', bodyStates)
-    if (Date.now() - lastSave > 5000) saveState()
+    StateStream.emit('State', { bodies: bodies })
+    snapshotIndex++
     p2World.step(deltaTime || 0.017)
+    if (Date.now() - lastSave > 5000) saveState()
   } else {
-    var snapshot = snapshots[snapshots.length - 1]
+    var snapshot = interpolationBuffer[interpolationBuffer.length - 1]
     if (snapshot) {
-      snapshot.forEach(function (body) {
+      snapshot.bodies.forEach(function (body) {
         var p2Body = p2World.getBodyById(body.id)
         p2Body.position = body.position
       })
-      snapshots = []
+      interpolationBuffer = []
     }
   }
   renderBodies()
   renderer.render(stage)
   requestAnimationFrame(update)
+}
+
+function simpleInterpolatedSnapshotsUpdate (time) {
+  var deltaTime = (time - lastRender) / 1000
+  lastRender = time
+  if (isHost) {
+    if (interpolationBuffer.length === 0 || Date.now() - interpolationBuffer[0].time > 1000 / Config.interpolation.pps) {
+      var bodies = p2World.bodies.map(function (body) {
+        return {
+          id: body.id,
+          position: body.position,
+          index: snapshotIndex
+        }
+      })
+      var snapshot = { bodies: bodies, time: Date.now() }
+      StateStream.emit('State', snapshot)
+      interpolationBuffer = [snapshot]
+      snapshotIndex++
+    }
+    p2World.step(deltaTime || 0.017)
+    if (Date.now() - lastSave > 5000) saveState()
+  } else {
+    if (avgTimeDiffInterval === undefined) {
+      var avgTimeDiffInterval = Meteor.setInterval(function () {
+        if (timeDiffs.length === 0) return
+        var sum = timeDiffs.reduce(function (a, b) { return a + b })
+        var avgTimeDiff = sum / timeDiffs.length
+        timeDiffs = []
+      }, 5000)
+    }
+    if (interpolationBuffer.length > 1) {
+      if (framesToInterpolate < 1) framesToInterpolate = 60 / Config.interpolation.pps
+      interpolatePositions(interpolationBuffer[interpolationBuffer.length - 1], framesToInterpolate)
+      framesToInterpolate--
+    }
+  }
+  renderBodies()
+  renderer.render(stage)
+  requestAnimationFrame(update)
+}
+
+function processSnapshot (snapshot) {
+  if (snapshot.time) timeDiffs.push(Date.now() - snapshot.time)
+  interpolationBuffer.push(snapshot)
+}
+
+function interpolatePositions (endSnapshot, remainingInterpolatedFrames) {
+  endSnapshot.bodies.forEach(function (body) {
+    var p2Body = p2World.getBodyById(body.id)
+    var interpolationVector = [
+      (body.position[0] - p2Body.position[0]) / remainingInterpolatedFrames,
+      (body.position[1] - p2Body.position[1]) / remainingInterpolatedFrames
+    ]
+    p2Body.position[0] += interpolationVector[0]
+    p2Body.position[1] += interpolationVector[1]
+  })
 }
 
 function renderBodies () {
@@ -186,7 +247,7 @@ function createPlayerBody (player) {
         radius: 10
       },
       mass: 5,
-      damping: 0.01,
+      damping: 0.6,
       data: {
         username: player.username
       }

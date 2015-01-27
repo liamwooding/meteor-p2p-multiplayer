@@ -8,12 +8,15 @@ InputStream = new Meteor.Stream('Input')
 Config = {
   defaultPassword: 'peer2peer',
   world: {
-    gravity: [0, -20]
+    gravity: [0, 0]
   },
   keyMap: {
     37: 'left',
     38: 'up',
     39: 'right',
     40: 'down'
+  },
+  interpolation: {
+    pps: 6
   }
 }
