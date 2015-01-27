@@ -45,7 +45,7 @@ Template.game.rendered = function () {
     snapshots.push(snapshot)
   })
 
-  $(document).click(function (e) {
+  $(document).mousedown(function (e) {
     if (isHost) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
     else InputStream.emit('Input', { position: [e.pageX, window.innerHeight - e.pageY], worldId: player.body.id })
   })
@@ -146,8 +146,8 @@ function normalizeVector (v) {
   var length = Math.sqrt((v[0] * v[0]) + (v[1] * v[1]))
   v[0] /= length
   v[1] /= length
-  v[0] *= 5000
-  v[1] *= 5000
+  v[0] *= 10000
+  v[1] *= 10000
   return v
 }
 
@@ -186,7 +186,7 @@ function createPlayerBody (player) {
         radius: 10
       },
       mass: 5,
-      damping: 0.5,
+      damping: 0.01,
       data: {
         username: player.username
       }
