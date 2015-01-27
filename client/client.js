@@ -8,7 +8,7 @@ var lastSave = Date.now()
 var bodyMap = {}
 var player = {}
 var isHost = false
-var update = simpleInterpolatedSnapshotsUpdate
+var update = simpleUpdate
 var interpolationBuffer = []
 var framesToInterpolate = 0
 var snapshotIndex = 0
@@ -51,6 +51,17 @@ Template.game.rendered = function () {
   $(document).mousedown(function (e) {
     if (isHost) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
     else InputStream.emit('Input', { position: [e.pageX, window.innerHeight - e.pageY], worldId: player.body.id })
+  })
+
+  Meteor.subscribe('ModeSwitches', {
+    onReady: function () {
+      ModeSwitches.find().observe({
+        added: function (mode) {
+          if (mode.name === 'simple') update = simpleUpdate
+          if (mode.name === 'simpleInterpolate') update = simpleInterpolatedSnapshotsUpdate
+        }
+      })
+    }
   })
 }
 

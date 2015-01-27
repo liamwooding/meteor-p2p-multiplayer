@@ -7,6 +7,9 @@ Meteor.publish('Bodies', function () {
 Meteor.publish('Hosts', function () {
   return Hosts.find({}, { sort: { index: -1 } })
 })
+Meteor.publish('ModeSwitches', function () {
+  return ModeSwitches.find()
+})
 
 Meteor.startup(function () {
   Players.remove({})
@@ -21,6 +24,12 @@ Meteor.startup(function () {
     update: function (userId, player) {
       if (player.userId === userId) return true
       else return false
+    }
+  })
+
+  ModeSwitches.allow({
+    insert: function () {
+      return true
     }
   })
 

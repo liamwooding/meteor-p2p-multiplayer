@@ -20,3 +20,6 @@ Config = {
     pps: 6
   }
 }
+
+// This stuff is just for demo purposes (switching interpolation modes etc)
+ModeSwitches = new Mongo.Collection('ModeSwitches')
