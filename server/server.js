@@ -48,15 +48,13 @@ Meteor.startup(function () {
     }
   })
 
-  StateStream.permissions.write(function (eventName, args) {
-    console.log(eventName, args)
+  SnapshotStream.permissions.write(function (eventName, args) {
     return true
   })
   InputStream.permissions.write(function (eventName, args) {
-    console.log(eventName, args)
     return true
   })
-  StateStream.permissions.read(function (userId, eventName) { return true })
+  SnapshotStream.permissions.read(function (userId, eventName) { return true })
   InputStream.permissions.read(function (userId, eventName) { return true })
 
   Accounts.onLogin(function (args) {

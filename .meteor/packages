@@ -8,3 +8,4 @@ meteor-platform
 streams
 accounts-base
 accounts-password
+fds:webrtc

@@ -8,12 +8,15 @@ var lastSave = Date.now()
 var bodyMap = {}
 var player = {}
 var isHost = false
-var update = simpleUpdate
 var interpolationBuffer = []
 var framesToInterpolate = 0
-var snapshotIndex = 0
 var timeDiffs = []
 var avgTimeDiff = 0
+var inputIndex = 0
+var inputBuffer = []
+
+var update = simpleUpdate
+var handleInput = simpleHandleInput
 
 Meteor.startup(function () {
   if (!localStorage.uuid) localStorage.uuid = Meteor.uuid()
@@ -32,36 +35,51 @@ Meteor.startup(function () {
 })
 
 Template.game.rendered = function () {
-  Meteor.subscribe('Bodies', {
-    onReady: function () {
-      initPhysics()
-      initRender()
-      update()
-    }
-  })
+  cpuTest(function (score) {
+    console.log(score)
 
-  InputStream.on('Input', function (event) {
-    if (isHost) handleInput(event.position, event.worldId)
-  })
+    Meteor.subscribe('Bodies', {
+      onReady: function () {
+        initPhysics()
+        initRender()
+        update()
+      }
+    })
 
-  StateStream.on('State', function (snapshot) {
-    processSnapshot(snapshot)
-  })
+    InputStream.on('Input', function (event) {
+      if (isHost) handleInput(event.position, event.worldId)
+    })
 
-  $(document).mousedown(function (e) {
-    if (isHost) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
-    else InputStream.emit('Input', { position: [e.pageX, window.innerHeight - e.pageY], worldId: player.body.id })
-  })
+    SnapshotStream.on('Snapshot', function (snapshot) {
+      processSnapshot(snapshot)
+    })
 
-  Meteor.subscribe('ModeSwitches', {
-    onReady: function () {
-      ModeSwitches.find().observe({
-        added: function (mode) {
-          if (mode.name === 'simple') update = simpleUpdate
-          if (mode.name === 'simpleInterpolate') update = simpleInterpolatedSnapshotsUpdate
-        }
-      })
-    }
+    $(document).mousedown(function (e) {
+      if (isHost || update === clientSidePredictionUpdate) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
+      if (!isHost || update === clientSidePredictionUpdate) {
+        InputStream.emit('Input', {
+          position: [e.pageX, window.innerHeight - e.pageY],
+          worldId: player.body.id,
+          index: inputIndex
+        })
+        inputBuffer.push({
+          position: player.body.position,
+          index: inputIndex
+        })
+        inputIndex++
+      }
+    })
+
+    Meteor.subscribe('ModeSwitches', {
+      onReady: function () {
+        ModeSwitches.find().observe({
+          added: function (mode) {
+            if (mode.name === 'simple') update = simpleUpdate
+            if (mode.name === 'simpleInterpolate') update = simpleInterpolatedSnapshotsUpdate
+          }
+        })
+      }
+    })
   })
 }
 
@@ -72,12 +90,10 @@ function simpleUpdate (time) {
     var bodies = p2World.bodies.map(function (body) {
       return {
         id: body.id,
-        position: body.position,
-        index: snapshotIndex
+        position: body.position
       }
     })
-    StateStream.emit('State', { bodies: bodies })
-    snapshotIndex++
+    SnapshotStream.emit('Snapshot', { bodies: bodies })
     p2World.step(deltaTime || 0.017)
     if (Date.now() - lastSave > 5000) saveState()
   } else {
@@ -103,14 +119,12 @@ function simpleInterpolatedSnapshotsUpdate (time) {
       var bodies = p2World.bodies.map(function (body) {
         return {
           id: body.id,
-          position: body.position,
-          index: snapshotIndex
+          position: body.position
         }
       })
       var snapshot = { bodies: bodies, time: Date.now() }
-      StateStream.emit('State', snapshot)
+      SnapshotStream.emit('Snapshot', snapshot)
       interpolationBuffer = [snapshot]
-      snapshotIndex++
     }
     p2World.step(deltaTime || 0.017)
     if (Date.now() - lastSave > 5000) saveState()
@@ -129,6 +143,14 @@ function simpleInterpolatedSnapshotsUpdate (time) {
       framesToInterpolate--
     }
   }
+  renderBodies()
+  renderer.render(stage)
+  requestAnimationFrame(update)
+}
+
+function clientSidePredictionUpdate (time) {
+  var deltaTime = (time - lastRender) / 1000
+  lastRender = time
   renderBodies()
   renderer.render(stage)
   requestAnimationFrame(update)
@@ -203,7 +225,7 @@ function becomeClient () {
   // Do client stuff
 }
 
-function handleInput (position, playerWorldId) {
+function simpleHandleInput (position, playerWorldId) {
   var playerBody = p2World.getBodyById(playerWorldId)
   if (!playerBody) return
   var positionVector = [
@@ -232,11 +254,9 @@ function initPhysics () {
   })
   Bodies.find().observe({
     added: function (body) {
-      console.log('Body added:', body)
       startSimulatingBody(body)
     },
     removed: function (body) {
-      console.log('Body removed:', body)
       stopSimulatingBody(body)
     }
   })
@@ -269,7 +289,6 @@ function createPlayerBody (player) {
 function startSimulatingBody (document) {
   var existingBodies = p2World.bodies.filter(function (body) {
     if (body.id === document.worldId) {
-      console.log('body with id', body.id, 'exists')
       return body
     }
   })
@@ -342,7 +361,6 @@ function saveState () {
   console.log('Saving state')
   Bodies.find().forEach(function (body) {
     var p2Body = p2World.getBodyById(body.worldId)
-    console.log(p2Body)
     if (!p2Body) Bodies.remove(body._id)
     else {
       Bodies.update(body._id, {
@@ -354,4 +372,33 @@ function saveState () {
     }
   })
   lastSave = Date.now()
+}
+
+function cpuTest (cb) {
+  console.log('performing cpu test')
+  var stepCount = 0
+  var stop = false
+  var testWorld = new p2.World({
+    gravity: [0, -9.78]
+  })
+  for (var i=0; i++; i < 50) {
+    var testBody = new p2.Body({
+      position: [ i * 10, 10 ],
+      mass: i,
+      damping: 0.1
+    })
+    var testShape = new p2.Circle(4)
+    testBody.addShape(testShape)
+    testBody.velocity = [ 25 - i, i ]
+    testWorld.addBody(testBody)
+  }
+  var interval = Meteor.setInterval(function () {
+    testWorld.step(0.017)
+    stepCount++
+  }, 1)
+  Meteor.setTimeout(function () {
+    Meteor.clearInterval(interval)
+    cb(stepCount)
+  }, 1000)
+
 }

@@ -2,7 +2,7 @@ Players = new Mongo.Collection('Players')
 Bodies = new Mongo.Collection('Bodies')
 Hosts = new Mongo.Collection('Hosts')
 
-StateStream = new Meteor.Stream('State')
+SnapshotStream = new Meteor.Stream('Snapshot')
 InputStream = new Meteor.Stream('Input')
 
 Config = {
@@ -17,9 +17,12 @@ Config = {
     40: 'down'
   },
   interpolation: {
+    pps: 20
+  },
+  prediction: {
     pps: 6
   }
 }
 
-// This stuff is just for demo purposes (switching interpolation modes etc)
+// This is just for demo purposes (switching interpolation modes etc)
 ModeSwitches = new Mongo.Collection('ModeSwitches')
