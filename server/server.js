@@ -26,12 +26,6 @@ Meteor.startup(function () {
     }
   })
 
-  ModeSwitches.allow({
-    insert: function () {
-      return true
-    }
-  })
-
   Hosts.allow({
     insert: function () {
       return true
@@ -48,6 +42,11 @@ Meteor.startup(function () {
         userId: player.userId,
         username: player.username
       })
+    },
+    newMode: function (mode) {
+      if (['simple', 'simpleInterpolate'].indexOf(mode) !== -1) {
+        ModeSwitches.insert({ name: mode })
+      }
     }
   })
 
