@@ -21,7 +21,6 @@ Meteor.startup(function () {
       return player.userId === userId
     },
     update: function (userId, player) {
-      console.log(userId, player.userId)
       return player.userId === userId
     }
   })
@@ -84,6 +83,15 @@ Meteor.startup(function () {
       })
     }
   })
+
+  // var cullPlayers = Meteor.setInterval(function () {
+  //   Players.find().forEach(function (player) {
+  //     if (Date.now() - player.lastSeen > 1000) {
+  //       Players.remove(player._id)
+  //       Bodies.remove({ 'data.username': player.username })
+  //     }
+  //   })
+  // }, 2000)
 })
 
 function assignHost (user) {

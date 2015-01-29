@@ -33,6 +33,11 @@ Meteor.startup(function () {
       })
     } else console.error(er)
   })
+
+  var keepAlive = Meteor.setInterval(function () {
+    var thisPlayer = Players.findOne({ username: localStorage.uuid })
+    if (thisPlayer) Players.update(thisPlayer._id, { $set: { lastSeen: Date.now() } })
+  }, 1000)
 })
 
 Template.game.helpers({
@@ -66,16 +71,19 @@ Template.game.rendered = function () {
       processSnapshot(snapshot)
     })
 
-    $(document).mousedown(function (e) {
-      if (isHost || update === clientSidePredictionUpdate) handleInput([e.pageX, window.innerHeight - e.pageY], player.body.id)
+    $(document).on('mousedown touchstart', function (e) {
+      if (e.type === 'mousedown') var clickPosition = [e.pageX, window.innerHeight - e.pageY]
+      else if (e.type === 'touchstart') var clickPosition = [e.originalEvent.touches[0].pageX, window.innerHeight - e.originalEvent.touches[0].pageY]
+
+      if (isHost || update === clientSidePredictionUpdate) handleInput(clickPosition, player.body.id)
       if (!isHost || update === clientSidePredictionUpdate) {
         InputStream.emit('Input', {
-          position: [e.pageX, window.innerHeight - e.pageY],
+          position: clickPosition,
           worldId: player.body.id,
           index: inputIndex
         })
         inputBuffer.push({
-          position: player.body.position,
+          position: clickPosition,
           index: inputIndex
         })
         inputIndex++
@@ -176,6 +184,7 @@ function processSnapshot (snapshot) {
 function interpolatePositions (endSnapshot, remainingInterpolatedFrames) {
   endSnapshot.bodies.forEach(function (body) {
     var p2Body = p2World.getBodyById(body.id)
+    if (!p2Body) return
     var interpolationVector = [
       (body.position[0] - p2Body.position[0]) / remainingInterpolatedFrames,
       (body.position[1] - p2Body.position[1]) / remainingInterpolatedFrames
@@ -269,6 +278,7 @@ function initPhysics () {
       startSimulatingBody(body)
     },
     removed: function (body) {
+      console.log(body)
       stopSimulatingBody(body)
     }
   })
@@ -321,11 +331,18 @@ function startSimulatingBody (document) {
   p2World.addBody(p2Body)
   if (!bodyMap[document.worldId]) bodyMap[document.worldId] = { body: p2Body }
   else bodyMap[document.worldId].body = p2Body
-  if (document.data && Meteor.user() && document.data.username === Meteor.user().username) player.body = p2Body
+  if (document.data && Meteor.user() && document.data.username === Meteor.user().username) {
+    console.log('Player body is:', p2Body)
+    player.body = p2Body
+  }
 }
 
 function stopSimulatingBody (body) {
+  console.log('Stopped simulating:', body)
   p2World.removeBody(p2World.getBodyById(body.worldId))
+  pixiWorld.children.filter(function (graphic) {
+    if (graphic.worldId = body.worldId) pixiWorld.removeChild(graphic)
+  })
 }
 
 function initRender () {
