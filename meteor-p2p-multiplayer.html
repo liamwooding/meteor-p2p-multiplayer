@@ -8,7 +8,14 @@
 </body>
 
 <template name='game'>
-  
+  <div id='players'>
+    {{#if isHost}}<p>You're the host</p>{{/if}}
+    <ul>
+      {{#each players}}
+      <li><span class='username'>{{ username }}</span><span>: {{cpuScore}}</span></li>
+      {{/each}}
+    </ul>
+  </div>
 </template>
 
 <template name='ui'>

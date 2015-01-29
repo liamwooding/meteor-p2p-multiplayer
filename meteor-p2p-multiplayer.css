@@ -13,3 +13,32 @@ canvas {
   filter: FlipV;
   -ms-filter: "FlipV";
 }
+
+#players {
+  font-family: courier;
+  position: fixed;
+  z-index: 3;
+  right: 0;
+  height: 100%;
+  width: 20%;
+  color: limegreen;
+}
+
+#players li {
+  padding-bottom: 10px;
+}
+
+#players span {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+#players span.username {
+  max-width: 68px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+#players span.username:hover {
+  max-width: none;
+  white-space: normal;
+}

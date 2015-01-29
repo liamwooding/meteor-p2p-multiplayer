@@ -5,7 +5,7 @@ Meteor.publish('Bodies', function () {
   return Bodies.find()
 })
 Meteor.publish('Hosts', function () {
-  return Hosts.find({}, { sort: { index: -1 } })
+  return Hosts.find({}, { sort: { index: -1 }, limit: 1 })
 })
 Meteor.publish('ModeSwitches', function () {
   return ModeSwitches.find()
@@ -18,12 +18,11 @@ Meteor.startup(function () {
 
   Players.allow({
     insert: function (userId, player) {
-      if (player.userId === userId) return true
-      else return false
+      return player.userId === userId
     },
     update: function (userId, player) {
-      if (player.userId === userId) return true
-      else return false
+      console.log(userId, player.userId)
+      return player.userId === userId
     }
   })
 
@@ -33,13 +32,32 @@ Meteor.startup(function () {
     }
   })
 
+  Hosts.allow({
+    insert: function () {
+      return true
+    }
+  })
+
+  Meteor.methods({
+    newHost: function (username) {
+      var player = Players.findOne({ username: username })
+      if (!player) return
+      console.log('Assigning new host:', player)
+      Hosts.insert({
+        index: Hosts.find().count(),
+        userId: player.userId,
+        username: player.username
+      })
+    }
+  })
+
   Bodies.allow({
     insert: function (userId, body) {
-      if (Hosts.find().fetch().some(function (host) { return userId === host.userId })) return true
+      if (Hosts.find({}, { sort: { index: -1 }, limit: 1 }).fetch().some(function (host) { return userId === host.userId })) return true
       return false
     },
     update: function (userId, body) {
-      if (Hosts.find().fetch().some(function (host) { return userId === host.userId })) return true
+      if (Hosts.find({}, { sort: { index: -1 }, limit: 1 }).fetch().some(function (host) { return userId === host.userId })) return true
       return false
     },
     remove: function (userId, body) {
@@ -62,6 +80,7 @@ Meteor.startup(function () {
     if (args.user && Hosts.find().count() === 0) assignHost(args.user)
     if (Players.find({ username: args.user.username }).count() === 0) {
       Players.insert({
+        userId: args.user._id,
         username: args.user.username
       })
     }

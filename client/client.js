@@ -14,6 +14,7 @@ var timeDiffs = []
 var avgTimeDiff = 0
 var inputIndex = 0
 var inputBuffer = []
+var cpuScore
 
 var update = simpleUpdate
 var handleInput = simpleHandleInput
@@ -34,9 +35,20 @@ Meteor.startup(function () {
   })
 })
 
+Template.game.helpers({
+  players: function () {
+    return Players.find()
+  },
+  isHost: function () {
+    return Hosts.findOne({ username: localStorage.uuid })
+  }
+});
+
 Template.game.rendered = function () {
   cpuTest(function (score) {
-    console.log(score)
+    console.log('CPU score is', score)
+    var dbPlayer = Players.findOne({ username: localStorage.uuid })
+    if (dbPlayer) Players.update(dbPlayer._id, { $set: { cpuScore: score } })
 
     Meteor.subscribe('Bodies', {
       onReady: function () {
